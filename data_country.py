@@ -46,7 +46,7 @@ else:
     }
     """
 
-# 본문 나눔고딕 설정 (없을 경우 맑은 고딕 대체)
+# 본문 나눔고딕 설정
 if NANUM_FONT.exists():
     fm.fontManager.addfont(str(NANUM_FONT))
     plt.rcParams["font.family"] = "NanumGothic"
@@ -134,27 +134,42 @@ def load_data():
 baci_raw, df = load_data()
 
 # ==========================================
-# 3. 사이드바 필터 (국가 & 무역액 등급)
+# 3. 사이드바 필터 (국가 다중 필터 & 무역액 등급)
 # ==========================================
 st.sidebar.header("🔍 필터 옵션")
 
-country_list = ["전체"] + sorted(df["country_name"].dropna().unique().tolist())
-selected_country = st.sidebar.selectbox("국가 선택", country_list)
+# 국가 다중 선택 필터
+country_options = sorted(df["country_name"].dropna().unique().tolist())
+selected_countries = st.sidebar.multiselect(
+    "국가 선택 (다중 필터)",
+    options=country_options,
+    default=country_options,  # 기본값: 전체 선택
+    placeholder="분석할 국가를 선택하세요",
+)
 
+# 무역액 등급 선택 (대, 중, 소)
 grade_options = ["대", "중", "소"]
 selected_grades = st.sidebar.multiselect(
-    "무역액 등급 선택", options=grade_options, default=grade_options
+    "무역액 등급 선택",
+    options=grade_options,
+    default=grade_options,
+    placeholder="무역액 등급을 선택하세요",
 )
 
 # 필터링 적용
 filtered_df = df.copy()
+
 if selected_grades:
     filtered_df = filtered_df[filtered_df["trade_grade"].isin(selected_grades)]
 else:
     filtered_df = filtered_df.iloc[0:0]
 
-if selected_country != "전체":
-    filtered_df = filtered_df[filtered_df["country_name"] == selected_country]
+if selected_countries:
+    filtered_df = filtered_df[
+        filtered_df["country_name"].isin(selected_countries)
+    ]
+else:
+    filtered_df = filtered_df.iloc[0:0]
 
 # ==========================================
 # 4. 메인 화면 구성
@@ -164,8 +179,21 @@ if selected_country != "전체":
 st.markdown(
     '<div class="atoz-title">무역 분석 대시보드</div>', unsafe_allow_html=True
 )
+
+# 선택된 국가 개수에 따른 안내 캡션
+if len(selected_countries) == len(country_options):
+    country_display = "전체 국가"
+elif len(selected_countries) > 3:
+    country_display = (
+        f"{selected_countries[0]} 외 {len(selected_countries)-1}개국"
+    )
+elif selected_countries:
+    country_display = ", ".join(selected_countries)
+else:
+    country_display = "선택 없음"
+
 st.caption(
-    f"📍 현재 필터: **국가: {selected_country}** | **무역액 등급: {', '.join(selected_grades) if selected_grades else '선택 없음'}** (조회 건수: {len(filtered_df):,}건)"
+    f"📍 현재 필터: **국가: {country_display}** | **무역액 등급: {', '.join(selected_grades) if selected_grades else '선택 없음'}** (조회 건수: {len(filtered_df):,}건)"
 )
 st.write("---")
 
@@ -186,9 +214,7 @@ st.subheader("2. 주요 거래 지표")
 col_m1, col_m2 = st.columns(2)
 
 total_trades = len(filtered_df)
-total_export_value = (
-    filtered_df["v"].sum() if not filtered_df.empty else 0.0
-)
+total_export_value = filtered_df["v"].sum() if not filtered_df.empty else 0.0
 
 with col_m1:
     st.metric(label="총 거래 건수", value=f"{total_trades:,} 건")
@@ -209,21 +235,18 @@ with c_col1:
     if filtered_df.empty:
         st.info("선택한 필터 조건에 부합하는 데이터가 없습니다.")
     else:
-        # 1. 대상 데이터 추출 (전체일 경우 상위 8개국, 단일 국가면 해당 국가)
-        if selected_country == "전체":
-            top_countries = (
-                filtered_df.groupby("country_name")["v"]
-                .sum()
-                .nlargest(8)
-                .index.tolist()
-            )
-            heatmap_data = filtered_df[
-                filtered_df["country_name"].isin(top_countries)
-            ]
-        else:
-            heatmap_data = filtered_df
+        # 선택된 국가 중 수출액 상위 최대 8개국 추출
+        top_countries = (
+            filtered_df.groupby("country_name")["v"]
+            .sum()
+            .nlargest(8)
+            .index.tolist()
+        )
+        heatmap_data = filtered_df[
+            filtered_df["country_name"].isin(top_countries)
+        ]
 
-        # 2. 피벗 테이블 생성 (국가 x 연도)
+        # 피벗 테이블 생성 (국가 x 연도)
         pivot_heat = heatmap_data.pivot_table(
             index="country_name",
             columns="t",
@@ -232,7 +255,7 @@ with c_col1:
             fill_value=0,
         )
 
-        # 3. 0 ~ 1 사이 Min-Max 정규화 (소수점 2자리 형태)
+        # 0 ~ 1 사이 Min-Max 정규화 (소수점 2자리 형태)
         val_min = pivot_heat.values.min()
         val_max = pivot_heat.values.max()
         if val_max - val_min > 0:
@@ -246,7 +269,7 @@ with c_col1:
 
         fig_hm, ax_hm = plt.subplots(figsize=(fig_width, fig_height))
 
-        # 파스텔 민트/아이보리 -> 차분한 세이지 초록 그라데이션 (YlGn 계열)
+        # 파스텔 초록 계열 그라데이션 (YlGn)
         cax = ax_hm.imshow(
             norm_values, cmap="YlGn", aspect="auto", vmin=0.0, vmax=1.0
         )
@@ -257,11 +280,10 @@ with c_col1:
         ax_hm.set_yticks(range(n_rows))
         ax_hm.set_yticklabels(pivot_heat.index, fontsize=9)
 
-        # 4. 소수점 2자리 텍스트 표기 및 배경 밝기에 따른 글자색 자동 전환
+        # 소수점 2자리 수치 및 글자색 자동 반전
         for r in range(n_rows):
             for c in range(n_cols):
                 val = norm_values[r, c]
-                # 짙은 초록 배경일 때는 흰 글씨, 연한 파스텔 초록일 때는 짙은 포레스트 그린 글씨
                 text_color = "#FFFFFF" if val > 0.72 else "#203A2B"
                 ax_hm.text(
                     c,
@@ -323,10 +345,7 @@ if filtered_df.empty:
     st.warning("선택한 조건에 해당하는 데이터가 없습니다.")
 else:
     top_5 = (
-        filtered_df.groupby("country_name")["v"]
-        .sum()
-        .nlargest(5)
-        .index.tolist()
+        filtered_df.groupby("country_name")["v"].sum().nlargest(5).index.tolist()
     )
     cross_data = filtered_df[filtered_df["country_name"].isin(top_5)]
 
