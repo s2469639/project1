@@ -62,12 +62,16 @@ else:
 
 plt.rcParams["axes.unicode_minus"] = False
 
-# 1-2. 배경화면 wave.jpg (투명도 50%)
+# 1-2. 배경 레이어 설정 (화이트 베이스 + 파도 은은하게 12% 투명도)
 bg_css = ""
 if BG_IMAGE.exists():
     with open(BG_IMAGE, "rb") as f:
         bg_b64 = base64.b64encode(f.read()).decode("utf-8")
     bg_css = f"""
+    /* 전체 배경: 화이트/소프트 민트 베이스 + 파도 이미지는 아주 은은하게 워터마크처럼 깔기 */
+    .stApp {{
+        background-color: #F7FAF8 !important;
+    }}
     .stApp::before {{
         content: "";
         position: fixed;
@@ -79,13 +83,16 @@ if BG_IMAGE.exists():
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
-        opacity: 0.5;
-        z-index: -1;
+        opacity: 0.12; /* 보일 듯 말 듯한 은은한 파도 질감 */
+        z-index: 0;
         pointer-events: none;
     }}
-    .stApp {{
-        background-color: transparent !important;
-    }}
+    """
+else:
+    bg_css = """
+    .stApp {
+        background-color: #F7FAF8 !important;
+    }
     """
 
 # 1-3. 마우스 커서 2.png (32x32 규격 리사이징)
@@ -111,7 +118,7 @@ if CURSOR_IMAGE.exists():
     except Exception:
         cursor_css = ""
 
-# 화이트 컨테이너 및 전체 스타일 CSS
+# 스타일 CSS 통합 주입 (확실한 순백색 화이트 박스 컨테이너)
 st.markdown(
     f"""
     <style>
@@ -131,9 +138,9 @@ st.markdown(
         color: #1E4632 !important;
         font-size: 2.7rem !important;
         font-weight: bold !important;
-        line-height: 1.3 !important;
+        line-height: 1.25 !important;
         margin: 0 !important;
-        padding-top: 4px !important;
+        padding-top: 2px !important;
         padding-bottom: 4px !important;
         display: block !important;
         letter-spacing: -0.5px;
@@ -142,55 +149,47 @@ st.markdown(
     h2, h3 {{
         color: #2D583F !important;
         font-weight: 700;
-        margin-top: 5px !important;
+        margin-top: 0 !important;
+        margin-bottom: 12px !important;
     }}
     
-    /* 사이드바 파스텔 반투명 배경 */
+    /* 사이드바 깔끔한 화이트 파스텔 마감 */
     [data-testid="stSidebar"] {{
-        background-color: rgba(244, 248, 245, 0.92) !important;
-        backdrop-filter: blur(8px);
+        background-color: #FFFFFF !important;
+        border-right: 1px solid #E2ECE5 !important;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.02) !important;
     }}
     
-    /* 🌟 핵심: 가독성을 살리는 화이트 컨테이너 카드 */
-    .white-card {{
-        background: rgba(255, 255, 255, 0.88);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
+    /* 🌟 완벽하게 분리된 순백색 화이트 박스 컨테이너 */
+    .white-box {{
+        position: relative;
+        z-index: 1;
+        background: #FFFFFF !important;
         padding: 24px 28px;
         border-radius: 16px;
-        box-shadow: 0 8px 24px rgba(46, 90, 68, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.7);
-        margin-bottom: 24px;
+        box-shadow: 0 4px 20px rgba(34, 76, 56, 0.05);
+        border: 1px solid #E4EFE8;
+        margin-bottom: 22px;
     }}
     
-    /* 메트릭 박스 전용 화이트 카드 */
-    .metric-card {{
-        background: rgba(255, 255, 255, 0.9);
-        border-radius: 14px;
-        padding: 16px 20px;
-        border-left: 5px solid #67A985;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.04);
-    }}
-    
-    /* Streamlit Metric 컴포넌트 커스텀 */
+    /* 메트릭 전용 내부 카드 */
     [data-testid="stMetric"] {{
-        background: rgba(255, 255, 255, 0.88);
-        padding: 14px 20px;
+        background: #F8FBF9 !important;
+        padding: 16px 22px;
         border-radius: 12px;
-        border: 1px solid rgba(220, 235, 226, 0.7);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid #E1EEE6 !important;
+        box-shadow: none !important;
     }}
     [data-testid="stMetricValue"] {{
         color: #1E4632 !important;
         font-weight: 700;
     }}
     
-    /* 데이터프레임 테두리 감싸기 */
+    /* 데이터프레임 테두리 깔끔화 */
     [data-testid="stDataFrame"] {{
-        background: rgba(255, 255, 255, 0.92) !important;
-        border-radius: 12px;
-        padding: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid #E9F1EC;
     }}
     </style>
     """,
@@ -268,11 +267,11 @@ else:
     filtered_df = filtered_df.iloc[0:0]
 
 # ==========================================
-# 4. 메인 화면 구성 (화이트 컨테이너 적용)
+# 4. 메인 화면 구성 (순백색 화이트 박스 블록)
 # ==========================================
 
-# 1. 타이틀 영역 화이트 카드
-st.markdown('<div class="white-card">', unsafe_allow_html=True)
+# 1. 타이틀 화이트 박스
+st.markdown('<div class="white-box">', unsafe_allow_html=True)
 st.markdown(
     '<div class="atoz-title">무역 분석 대시보드</div>', unsafe_allow_html=True
 )
@@ -291,8 +290,8 @@ st.caption(
 )
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 2. 결측치 현황 화이트 카드
-st.markdown('<div class="white-card">', unsafe_allow_html=True)
+# 2. 결측치 현황 화이트 박스
+st.markdown('<div class="white-box">', unsafe_allow_html=True)
 st.subheader("1. 데이터 결측치 현황 (baci_85_sample.csv)")
 null_counts = baci_raw.isnull().sum()
 null_df = pd.DataFrame(
@@ -305,8 +304,8 @@ null_df = pd.DataFrame(
 st.dataframe(null_df, use_container_width=True, hide_index=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 3. 주요 거래 지표 화이트 카드
-st.markdown('<div class="white-card">', unsafe_allow_html=True)
+# 3. 주요 거래 지표 화이트 박스
+st.markdown('<div class="white-box">', unsafe_allow_html=True)
 st.subheader("2. 주요 거래 지표")
 col_m1, col_m2 = st.columns(2)
 
@@ -324,8 +323,8 @@ with col_m2:
     )
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 4. 반응형 시각화 분석 화이트 카드
-st.markdown('<div class="white-card">', unsafe_allow_html=True)
+# 4. 반응형 시각화 분석 화이트 박스
+st.markdown('<div class="white-box">', unsafe_allow_html=True)
 st.subheader("3. 무역 시각화 분석")
 c_col1, c_col2 = st.columns([1.3, 0.7])
 
@@ -407,8 +406,8 @@ with c_col1:
             yaxis=dict(title="국가", autorange="reversed", showgrid=False),
             margin=dict(l=40, r=20, t=40, b=40),
             height=380,
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="#FFFFFF",
+            plot_bgcolor="#FFFFFF",
         )
 
         st.plotly_chart(fig_hm, use_container_width=True)
@@ -448,15 +447,15 @@ with c_col2:
             yaxis=dict(title="거래 건수", showgrid=True, gridcolor="#EDF2F0"),
             margin=dict(l=20, r=20, t=40, b=40),
             height=380,
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="#FFFFFF",
+            plot_bgcolor="#FFFFFF",
         )
 
         st.plotly_chart(fig_bar, use_container_width=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 5. 국가 * 무역액 등급 교차표 화이트 카드
-st.markdown('<div class="white-card">', unsafe_allow_html=True)
+# 5. 국가 * 무역액 등급 교차표 화이트 박스
+st.markdown('<div class="white-box">', unsafe_allow_html=True)
 st.subheader("4. 국가 × 무역액 등급 교차표")
 
 if filtered_df.empty:
