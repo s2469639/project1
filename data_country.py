@@ -22,10 +22,13 @@ BACI_FILE = BASE_DIR / "baci_85_sample.csv"
 COUNTRY_FILE = BASE_DIR / "country_codes_sample.csv"
 ATOZ_FONT = BASE_DIR / "에이투지체-7Bold.ttf"
 NANUM_FONT = BASE_DIR / "NanumGothic.ttf"
+BG_IMAGE = BASE_DIR / "wave.jpg"
+CURSOR_IMAGE = BASE_DIR / "2.png"
 
 # ==========================================
-# 1. 폰트 로드 및 스타일(CSS) 설정
+# 1. 리소스(폰트, 배경 이미지, 커서) Base64 변환
 # ==========================================
+# 1-1. 제목 폰트 인코딩
 title_font_css = ""
 if ATOZ_FONT.exists():
     with open(ATOZ_FONT, "rb") as f:
@@ -47,11 +50,66 @@ else:
     }
     """
 
-# 스타일 CSS
+# 본문 폰트 설정
+if NANUM_FONT.exists():
+    fm.fontManager.addfont(str(NANUM_FONT))
+    plt.rcParams["font.family"] = "NanumGothic"
+else:
+    plt.rcParams["font.family"] = "Malgun Gothic"
+
+plt.rcParams["axes.unicode_minus"] = False
+
+# 1-2. 배경화면 wave.jpg (투명도 50%)
+bg_css = ""
+if BG_IMAGE.exists():
+    with open(BG_IMAGE, "rb") as f:
+        bg_b64 = base64.b64encode(f.read()).decode("utf-8")
+    bg_css = f"""
+    /* 배경 이미지를 가상 요소로 본문 뒤에 깔고 투명도 0.5 적용 */
+    .stApp::before {{
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-image: url('data:image/jpeg;base64,{bg_b64}');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        opacity: 0.5;
+        z-index: -1;
+        pointer-events: none;
+    }}
+    /* 기본 배경색 투명화 */
+    .stApp {{
+        background-color: transparent !important;
+    }}
+    """
+
+# 1-3. 마우스 커서 2.png
+cursor_css = ""
+if CURSOR_IMAGE.exists():
+    with open(CURSOR_IMAGE, "rb") as f:
+        cursor_b64 = base64.b64encode(f.read()).decode("utf-8")
+    cursor_url = f"data:image/png;base64,{cursor_b64}"
+    cursor_css = f"""
+    /* 전체 화면 및 주요 클릭 요소에 커서 강제 적용 */
+    html, body, .stApp, * {{
+        cursor: url('{cursor_url}'), auto !important;
+    }}
+    button, a, select, input, [role="button"], .stSelectbox, .stMultiSelect {{
+        cursor: url('{cursor_url}'), pointer !important;
+    }}
+    """
+
+# 스타일 CSS 통합 주입
 st.markdown(
     f"""
     <style>
     {title_font_css}
+    {bg_css}
+    {cursor_css}
     
     /* 기본 본문 */
     html, body, [class*="css"], div, p, span, label {{
@@ -78,9 +136,9 @@ st.markdown(
         font-weight: 600;
     }}
     
-    /* 사이드바 파스텔 배경 */
+    /* 사이드바 파스텔 반투명 배경 */
     [data-testid="stSidebar"] {{
-        background-color: #F2F7F4;
+        background-color: rgba(242, 247, 244, 0.9) !important;
     }}
     
     /* 지표(Metric) 스타일 */
@@ -203,9 +261,7 @@ st.subheader("2. 주요 거래 지표")
 col_m1, col_m2 = st.columns(2)
 
 total_trades = len(filtered_df)
-total_export_value = (
-    filtered_df["v"].sum() if not filtered_df.empty else 0.0
-)
+total_export_value = filtered_df["v"].sum() if not filtered_df.empty else 0.0
 
 with col_m1:
     st.metric(label="총 거래 건수", value=f"{total_trades:,} 건")
@@ -269,7 +325,7 @@ with c_col1:
                 )
             hover_texts.append(row_hovers)
 
-        # 반응형 히트맵 생성 (파스텔 초록 계열 YlGn 컬러 스케일)
+        # 반응형 히트맵 생성
         fig_hm = go.Figure(
             data=go.Heatmap(
                 z=norm_values,
@@ -283,7 +339,7 @@ with c_col1:
                 textfont={"size": 11, "family": "NanumGothic, sans-serif"},
                 hovertext=hover_texts,
                 hoverinfo="text",
-                xgap=2.5,  # 흰색 블록 구분선
+                xgap=2.5,
                 ygap=2.5,
                 colorbar=dict(
                     title=dict(text="정규화", side="top"),
@@ -308,7 +364,6 @@ with c_col1:
             plot_bgcolor="rgba(0,0,0,0)",
         )
 
-        # 반응형 렌더링
         st.plotly_chart(fig_hm, use_container_width=True)
 
 with c_col2:
@@ -362,10 +417,7 @@ if filtered_df.empty:
     st.warning("선택한 조건에 해당하는 데이터가 없습니다.")
 else:
     top_5 = (
-        filtered_df.groupby("country_name")["v"]
-        .sum()
-        .nlargest(5)
-        .index.tolist()
+        filtered_df.groupby("country_name")["v"].sum().nlargest(5).index.tolist()
     )
     cross_data = filtered_df[filtered_df["country_name"].isin(top_5)]
 
