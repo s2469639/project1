@@ -117,7 +117,7 @@ if CURSOR_IMAGE.exists():
     except Exception:
         cursor_css = ""
 
-# 스타일 CSS (파스텔 오션 블루 톤앤매너 & 불필요한 빈 박스 제거)
+# 스타일 CSS (빈 박스 원인 태그 제거 및 컴포넌트 단위 깔끔 스타일링)
 st.markdown(
     f"""
     <style>
@@ -131,7 +131,7 @@ st.markdown(
         color: #1E293B;
     }}
     
-    /* 제목 전용 클래스 (에이투지체-7Bold, 딥 오션 네이비) */
+    /* 제목 전용 스타일 (에이투지체-7Bold, 딥 오션 네이비) */
     .atoz-title {{
         font-family: 'AtoZBold', sans-serif !important;
         color: #1D3557 !important;
@@ -158,16 +158,6 @@ st.markdown(
         border-right: 1px solid #E2E8F0 !important;
     }}
     
-    /* 🌟 차트 및 시각화 전용 화이트 카드 래퍼 */
-    .chart-box {{
-        background: #FFFFFF !important;
-        border-radius: 14px;
-        padding: 16px 20px;
-        border: 1px solid #E2E8F0;
-        box-shadow: 0 4px 16px rgba(29, 53, 87, 0.05);
-        margin-bottom: 12px;
-    }}
-    
     /* 메트릭 박스 화이트 카드 */
     [data-testid="stMetric"] {{
         background: #FFFFFF !important;
@@ -186,6 +176,15 @@ st.markdown(
         background: #FFFFFF !important;
         border-radius: 12px;
         padding: 6px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 4px 16px rgba(29, 53, 87, 0.04);
+    }}
+    
+    /* Plotly 차트 테두리 및 화이트 배경 카드화 */
+    [data-testid="stPlotlyChart"] {{
+        background: #FFFFFF !important;
+        border-radius: 12px;
+        padding: 12px 14px;
         border: 1px solid #E2E8F0;
         box-shadow: 0 4px 16px rgba(29, 53, 87, 0.04);
     }}
@@ -268,7 +267,7 @@ else:
 # 4. 메인 화면 구성
 # ==========================================
 
-# 1. 메인 타이틀 영역 (배경에 바로 자연스럽게 얹힘)
+# 1. 메인 타이틀 영역
 st.markdown(
     '<div class="atoz-title">무역 분석 대시보드</div>', unsafe_allow_html=True
 )
@@ -318,12 +317,11 @@ with col_m2:
 
 st.write("---")
 
-# 4. 반응형 시각화 분석 (오션 블루 계열 차트)
+# 4. 반응형 시각화 분석
 st.subheader("3. 무역 시각화 분석")
 c_col1, c_col2 = st.columns([1.3, 0.7])
 
 with c_col1:
-    st.markdown('<div class="chart-box">', unsafe_allow_html=True)
     st.markdown("**국가 × 연도 수출액 히트맵**")
     if filtered_df.empty:
         st.info("선택한 필터 조건에 부합하는 데이터가 없습니다.")
@@ -367,7 +365,7 @@ with c_col1:
                 )
             hover_texts.append(row_hovers)
 
-        # 파도와 어울리는 오션 블루 (Blues) 컬러 스케일
+        # 오션 블루 (Blues) 컬러 스케일
         fig_hm = go.Figure(
             data=go.Heatmap(
                 z=norm_values,
@@ -407,10 +405,8 @@ with c_col1:
         )
 
         st.plotly_chart(fig_hm, use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
 with c_col2:
-    st.markdown('<div class="chart-box">', unsafe_allow_html=True)
     st.markdown("**무역액 등급 분포**")
     if filtered_df.empty:
         st.info("데이터가 없습니다.")
@@ -451,7 +447,6 @@ with c_col2:
         )
 
         st.plotly_chart(fig_bar, use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
 st.write("---")
 
