@@ -1,5 +1,5 @@
 무역 분석 대시보드 
-사이드바에 국가 선택(셀렉트 박스), 무역액등급 선택(대,중,소) / 필터
+사이드바에 국가 선택, 무역액등급 선택(대,중,소) / 필터
 baci_85_sample.csv 사용 -> columns: i,j,k,t,v 참고
 country_codes_sample.csv 사용 -> columns: j,country_name 참고
 한글 지원 (폰트 = title: '온글잎 윤탱체', 기타 본문: NanumGothic.ttf)
