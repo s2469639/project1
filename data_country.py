@@ -1,9 +1,11 @@
 import base64
+import io
 from pathlib import Path
 import matplotlib.font_manager as fm
-import matplotlib.pyplot as plt  # <--- 이 줄을 추가해 주세요!
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from PIL import Image  # <--- 추가
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
@@ -88,21 +90,33 @@ if BG_IMAGE.exists():
     }}
     """
 
-# 1-3. 마우스 커서 2.png
+# 1-3. 마우스 커서 2.png (32x32 자동 리사이징 + Base64 주입)
 cursor_css = ""
 if CURSOR_IMAGE.exists():
-    with open(CURSOR_IMAGE, "rb") as f:
-        cursor_b64 = base64.b64encode(f.read()).decode("utf-8")
-    cursor_url = f"data:image/png;base64,{cursor_b64}"
-    cursor_css = f"""
-    /* 전체 화면 및 주요 클릭 요소에 커서 강제 적용 */
-    html, body, .stApp, * {{
-        cursor: url('{cursor_url}'), auto !important;
-    }}
-    button, a, select, input, [role="button"], .stSelectbox, .stMultiSelect {{
-        cursor: url('{cursor_url}'), pointer !important;
-    }}
-    """
+    try:
+        # 브라우저 규격에 맞게 32x32로 리사이징
+        with Image.open(CURSOR_IMAGE) as img:
+            img = img.convert("RGBA")
+            img.thumbnail((32, 32), Image.Resampling.LANCZOS)
+            buffered = io.BytesIO()
+            img.save(buffered, format="PNG")
+            cursor_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+        cursor_url = f"data:image/png;base64,{cursor_b64}"
+
+        # 0 0 은 클릭 기준점(좌표)입니다.
+        cursor_css = f"""
+        /* Streamlit 전체 컨테이너 및 모든 하위 태그에 강제 적용 */
+        html, body, .stApp, .stApp * {{
+            cursor: url('{cursor_url}') 0 0, auto !important;
+        }}
+        /* 버튼, 셀렉트박스 등 클릭 요소 */
+        button, a, select, input, [role="button"], .stSelectbox, .stMultiSelect {{
+            cursor: url('{cursor_url}') 0 0, pointer !important;
+        }}
+        """
+    except Exception as e:
+        cursor_css = ""
 
 # 스타일 CSS 통합 주입
 st.markdown(
