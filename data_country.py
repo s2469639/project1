@@ -1,6 +1,7 @@
 import base64
 from pathlib import Path
 import matplotlib.font_manager as fm
+import matplotlib.pyplot as plt  # <--- 이 줄을 추가해 주세요!
 import numpy as np
 import pandas as pd
 import plotly.express as px
