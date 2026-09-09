@@ -1,9 +1,10 @@
 import base64
 from pathlib import Path
 import matplotlib.font_manager as fm
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 # ==========================================
@@ -46,16 +47,7 @@ else:
     }
     """
 
-# 본문 나눔고딕 설정
-if NANUM_FONT.exists():
-    fm.fontManager.addfont(str(NANUM_FONT))
-    plt.rcParams["font.family"] = "NanumGothic"
-else:
-    plt.rcParams["font.family"] = "Malgun Gothic"
-
-plt.rcParams["axes.unicode_minus"] = False
-
-# 스타일 CSS (파스텔 초록 테마 및 에이투지체 제목 스타일)
+# 스타일 CSS
 st.markdown(
     f"""
     <style>
@@ -143,7 +135,7 @@ country_options = sorted(df["country_name"].dropna().unique().tolist())
 selected_countries = st.sidebar.multiselect(
     "국가 선택 (다중 필터)",
     options=country_options,
-    default=country_options,  # 기본값: 전체 선택
+    default=country_options,
     placeholder="분석할 국가를 선택하세요",
 )
 
@@ -175,18 +167,15 @@ else:
 # 4. 메인 화면 구성
 # ==========================================
 
-# 1. 오른쪽 화면 타이틀 (에이투지체-7Bold 적용)
+# 1. 화면 타이틀
 st.markdown(
     '<div class="atoz-title">무역 분석 대시보드</div>', unsafe_allow_html=True
 )
 
-# 선택된 국가 개수에 따른 안내 캡션
 if len(selected_countries) == len(country_options):
     country_display = "전체 국가"
 elif len(selected_countries) > 3:
-    country_display = (
-        f"{selected_countries[0]} 외 {len(selected_countries)-1}개국"
-    )
+    country_display = f"{selected_countries[0]} 외 {len(selected_countries)-1}개국"
 elif selected_countries:
     country_display = ", ".join(selected_countries)
 else:
@@ -197,7 +186,7 @@ st.caption(
 )
 st.write("---")
 
-# 2. baci_85_sample.csv 결측치 현황
+# 2. 결측치 현황
 st.subheader("1. 데이터 결측치 현황 (baci_85_sample.csv)")
 null_counts = baci_raw.isnull().sum()
 null_df = pd.DataFrame(
@@ -209,12 +198,14 @@ null_df = pd.DataFrame(
 )
 st.dataframe(null_df, use_container_width=True, hide_index=True)
 
-# 3. 총 거래건수 및 총 수출액(미국 달러)
+# 3. 주요 거래 지표
 st.subheader("2. 주요 거래 지표")
 col_m1, col_m2 = st.columns(2)
 
 total_trades = len(filtered_df)
-total_export_value = filtered_df["v"].sum() if not filtered_df.empty else 0.0
+total_export_value = (
+    filtered_df["v"].sum() if not filtered_df.empty else 0.0
+)
 
 with col_m1:
     st.metric(label="총 거래 건수", value=f"{total_trades:,} 건")
@@ -226,7 +217,7 @@ with col_m2:
 
 st.write("---")
 
-# 4. 국가*연도 수출액 히트맵(상위 8개국) & 무역액 등급 분포
+# 4. 반응형 시각화 분석 (Plotly 기반)
 st.subheader("3. 무역 시각화 분석")
 c_col1, c_col2 = st.columns([1.3, 0.7])
 
@@ -235,7 +226,7 @@ with c_col1:
     if filtered_df.empty:
         st.info("선택한 필터 조건에 부합하는 데이터가 없습니다.")
     else:
-        # 선택된 국가 중 수출액 상위 최대 8개국 추출
+        # 상위 최대 8개국 추출
         top_countries = (
             filtered_df.groupby("country_name")["v"]
             .sum()
@@ -246,8 +237,8 @@ with c_col1:
             filtered_df["country_name"].isin(top_countries)
         ]
 
-        # 피벗 테이블 생성 (국가 x 연도)
-        pivot_heat = heatmap_data.pivot_table(
+        # 피벗 테이블 생성
+        pivot_raw = heatmap_data.pivot_table(
             index="country_name",
             columns="t",
             values="v",
@@ -255,61 +246,70 @@ with c_col1:
             fill_value=0,
         )
 
-        # 0 ~ 1 사이 Min-Max 정규화 (소수점 2자리 형태)
-        val_min = pivot_heat.values.min()
-        val_max = pivot_heat.values.max()
+        # Min-Max 정규화 (0~1)
+        val_min = pivot_raw.values.min()
+        val_max = pivot_raw.values.max()
         if val_max - val_min > 0:
-            norm_values = (pivot_heat.values - val_min) / (val_max - val_min)
+            norm_values = (pivot_raw.values - val_min) / (val_max - val_min)
         else:
-            norm_values = np.zeros_like(pivot_heat.values)
+            norm_values = np.zeros_like(pivot_raw.values)
 
-        n_rows, n_cols = norm_values.shape
-        fig_height = max(4.0, n_rows * 0.55 + 1.0)
-        fig_width = max(5.5, n_cols * 0.75 + 1.2)
+        # 텍스트 라벨 & 툴팁 데이터 구성
+        text_labels = [[f"{val:.2f}" for val in row] for row in norm_values]
+        hover_texts = []
+        for r_idx, country in enumerate(pivot_raw.index):
+            row_hovers = []
+            for c_idx, year in enumerate(pivot_raw.columns):
+                raw_val = pivot_raw.values[r_idx, c_idx]
+                norm_val = norm_values[r_idx, c_idx]
+                row_hovers.append(
+                    f"<b>{country}</b> ({year}년)<br>"
+                    f"정규화 점수: <b>{norm_val:.2f}</b><br>"
+                    f"실제 수출액: <b>${raw_val:,.0f}</b>"
+                )
+            hover_texts.append(row_hovers)
 
-        fig_hm, ax_hm = plt.subplots(figsize=(fig_width, fig_height))
-
-        # 파스텔 초록 계열 그라데이션 (YlGn)
-        cax = ax_hm.imshow(
-            norm_values, cmap="YlGn", aspect="auto", vmin=0.0, vmax=1.0
+        # 반응형 히트맵 생성 (파스텔 초록 계열 YlGn 컬러 스케일)
+        fig_hm = go.Figure(
+            data=go.Heatmap(
+                z=norm_values,
+                x=[str(col) for col in pivot_raw.columns],
+                y=pivot_raw.index.tolist(),
+                colorscale="YlGn",
+                zmin=0.0,
+                zmax=1.0,
+                text=text_labels,
+                texttemplate="%{text}",
+                textfont={"size": 11, "family": "NanumGothic, sans-serif"},
+                hovertext=hover_texts,
+                hoverinfo="text",
+                xgap=2.5,  # 흰색 블록 구분선
+                ygap=2.5,
+                colorbar=dict(
+                    title=dict(text="정규화", side="top"),
+                    thickness=12,
+                    len=0.8,
+                ),
+            )
         )
 
-        # 축 눈금 설정
-        ax_hm.set_xticks(range(n_cols))
-        ax_hm.set_xticklabels(pivot_heat.columns, fontsize=9)
-        ax_hm.set_yticks(range(n_rows))
-        ax_hm.set_yticklabels(pivot_heat.index, fontsize=9)
+        fig_hm.update_layout(
+            title=dict(
+                text="Heatmap (0.00 ~ 1.00 정규화)",
+                font=dict(size=14, color="#2E5A44"),
+                x=0.5,
+                xanchor="center",
+            ),
+            xaxis=dict(title="연도 (t)", type="category", showgrid=False),
+            yaxis=dict(title="국가", autorange="reversed", showgrid=False),
+            margin=dict(l=40, r=20, t=40, b=40),
+            height=380,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
 
-        # 소수점 2자리 수치 및 글자색 자동 반전
-        for r in range(n_rows):
-            for c in range(n_cols):
-                val = norm_values[r, c]
-                text_color = "#FFFFFF" if val > 0.72 else "#203A2B"
-                ax_hm.text(
-                    c,
-                    r,
-                    f"{val:.2f}",
-                    ha="center",
-                    va="center",
-                    color=text_color,
-                    fontsize=8.5,
-                    fontweight="500",
-                )
-
-        # 깔끔한 흰색 격자선(Grid)
-        ax_hm.set_xticks(np.arange(n_cols + 1) - 0.5, minor=True)
-        ax_hm.set_yticks(np.arange(n_rows + 1) - 0.5, minor=True)
-        ax_hm.grid(which="minor", color="#FFFFFF", linestyle="-", linewidth=1.5)
-        ax_hm.tick_params(which="minor", bottom=False, left=False)
-        ax_hm.tick_params(which="major", length=0)
-
-        # 외곽 테두리 마감
-        for spine in ax_hm.spines.values():
-            spine.set_color("#FFFFFF")
-
-        ax_hm.set_title("Heatmap", fontsize=11, pad=10, color="#2E5A44")
-        st.pyplot(fig_hm)
-        plt.close(fig_hm)
+        # 반응형 렌더링
+        st.plotly_chart(fig_hm, use_container_width=True)
 
 with c_col2:
     st.markdown("**무역액 등급 분포**")
@@ -322,30 +322,50 @@ with c_col2:
             .reindex(grade_options, fill_value=0)
         )
 
-        fig_bar, ax_bar = plt.subplots(figsize=(4, 4))
-        pastel_colors = ["#76B894", "#A3D9B1", "#CDE8D5"]
-        ax_bar.bar(
-            grade_dist.index,
-            grade_dist.values,
-            color=pastel_colors,
-            edgecolor="none",
+        # 반응형 막대그래프
+        fig_bar = go.Figure(
+            data=[
+                go.Bar(
+                    x=grade_dist.index.tolist(),
+                    y=grade_dist.values.tolist(),
+                    marker_color=["#4A8463", "#78B08B", "#A3D9B1"],
+                    text=[f"{v:,}건" for v in grade_dist.values],
+                    textposition="auto",
+                    hovertemplate="등급: <b>%{x}</b><br>거래 건수: <b>%{y:,}건</b><extra></extra>",
+                )
+            ]
         )
-        ax_bar.set_xlabel("등급", fontsize=9)
-        ax_bar.set_ylabel("거래 건수", fontsize=9)
-        ax_bar.grid(axis="y", linestyle="--", alpha=0.3)
-        st.pyplot(fig_bar)
-        plt.close(fig_bar)
+
+        fig_bar.update_layout(
+            title=dict(
+                text="등급별 거래 건수",
+                font=dict(size=14, color="#2E5A44"),
+                x=0.5,
+                xanchor="center",
+            ),
+            xaxis=dict(title="등급"),
+            yaxis=dict(title="거래 건수", showgrid=True, gridcolor="#EDF2F0"),
+            margin=dict(l=20, r=20, t=40, b=40),
+            height=380,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+
+        st.plotly_chart(fig_bar, use_container_width=True)
 
 st.write("---")
 
-# 5. 상위 5개국 * 무역액 등급 교차표 (원본건수 / 정규화비율)
+# 5. 상위 5개국 * 무역액 등급 교차표
 st.subheader("4. 국가 × 무역액 등급 교차표")
 
 if filtered_df.empty:
     st.warning("선택한 조건에 해당하는 데이터가 없습니다.")
 else:
     top_5 = (
-        filtered_df.groupby("country_name")["v"].sum().nlargest(5).index.tolist()
+        filtered_df.groupby("country_name")["v"]
+        .sum()
+        .nlargest(5)
+        .index.tolist()
     )
     cross_data = filtered_df[filtered_df["country_name"].isin(top_5)]
 
