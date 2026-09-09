@@ -5,7 +5,7 @@ import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from PIL import Image  # <--- 추가
+from PIL import Image
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
@@ -29,7 +29,7 @@ BG_IMAGE = BASE_DIR / "wave.jpg"
 CURSOR_IMAGE = BASE_DIR / "2.png"
 
 # ==========================================
-# 1. 리소스(폰트, 배경 이미지, 커서) Base64 변환
+# 1. 리소스(폰트, 배경, 커서) Base64 변환 및 스타일
 # ==========================================
 # 1-1. 제목 폰트 인코딩
 title_font_css = ""
@@ -68,7 +68,6 @@ if BG_IMAGE.exists():
     with open(BG_IMAGE, "rb") as f:
         bg_b64 = base64.b64encode(f.read()).decode("utf-8")
     bg_css = f"""
-    /* 배경 이미지를 가상 요소로 본문 뒤에 깔고 투명도 0.5 적용 */
     .stApp::before {{
         content: "";
         position: fixed;
@@ -84,17 +83,15 @@ if BG_IMAGE.exists():
         z-index: -1;
         pointer-events: none;
     }}
-    /* 기본 배경색 투명화 */
     .stApp {{
         background-color: transparent !important;
     }}
     """
 
-# 1-3. 마우스 커서 2.png (32x32 자동 리사이징 + Base64 주입)
+# 1-3. 마우스 커서 2.png (32x32 규격 리사이징)
 cursor_css = ""
 if CURSOR_IMAGE.exists():
     try:
-        # 브라우저 규격에 맞게 32x32로 리사이징
         with Image.open(CURSOR_IMAGE) as img:
             img = img.convert("RGBA")
             img.thumbnail((32, 32), Image.Resampling.LANCZOS)
@@ -103,22 +100,18 @@ if CURSOR_IMAGE.exists():
             cursor_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
         cursor_url = f"data:image/png;base64,{cursor_b64}"
-
-        # 0 0 은 클릭 기준점(좌표)입니다.
         cursor_css = f"""
-        /* Streamlit 전체 컨테이너 및 모든 하위 태그에 강제 적용 */
         html, body, .stApp, .stApp * {{
             cursor: url('{cursor_url}') 0 0, auto !important;
         }}
-        /* 버튼, 셀렉트박스 등 클릭 요소 */
         button, a, select, input, [role="button"], .stSelectbox, .stMultiSelect {{
             cursor: url('{cursor_url}') 0 0, pointer !important;
         }}
         """
-    except Exception as e:
+    except Exception:
         cursor_css = ""
 
-# 스타일 CSS 통합 주입
+# 화이트 컨테이너 및 전체 스타일 CSS
 st.markdown(
     f"""
     <style>
@@ -135,31 +128,69 @@ st.markdown(
     /* 제목 전용 클래스 (에이투지체-7Bold) */
     .atoz-title {{
         font-family: 'AtoZBold', sans-serif !important;
-        color: #244F3A !important;
+        color: #1E4632 !important;
         font-size: 2.7rem !important;
         font-weight: bold !important;
         line-height: 1.3 !important;
         margin: 0 !important;
-        padding-top: 8px !important;
+        padding-top: 4px !important;
         padding-bottom: 4px !important;
         display: block !important;
         letter-spacing: -0.5px;
     }}
     
     h2, h3 {{
-        color: #38644D !important;
-        font-weight: 600;
+        color: #2D583F !important;
+        font-weight: 700;
+        margin-top: 5px !important;
     }}
     
     /* 사이드바 파스텔 반투명 배경 */
     [data-testid="stSidebar"] {{
-        background-color: rgba(242, 247, 244, 0.9) !important;
+        background-color: rgba(244, 248, 245, 0.92) !important;
+        backdrop-filter: blur(8px);
     }}
     
-    /* 지표(Metric) 스타일 */
+    /* 🌟 핵심: 가독성을 살리는 화이트 컨테이너 카드 */
+    .white-card {{
+        background: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        padding: 24px 28px;
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(46, 90, 68, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        margin-bottom: 24px;
+    }}
+    
+    /* 메트릭 박스 전용 화이트 카드 */
+    .metric-card {{
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 14px;
+        padding: 16px 20px;
+        border-left: 5px solid #67A985;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+    }}
+    
+    /* Streamlit Metric 컴포넌트 커스텀 */
+    [data-testid="stMetric"] {{
+        background: rgba(255, 255, 255, 0.88);
+        padding: 14px 20px;
+        border-radius: 12px;
+        border: 1px solid rgba(220, 235, 226, 0.7);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    }}
     [data-testid="stMetricValue"] {{
-        color: #244F3A !important;
+        color: #1E4632 !important;
         font-weight: 700;
+    }}
+    
+    /* 데이터프레임 테두리 감싸기 */
+    [data-testid="stDataFrame"] {{
+        background: rgba(255, 255, 255, 0.92) !important;
+        border-radius: 12px;
+        padding: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
     }}
     </style>
     """,
@@ -237,10 +268,11 @@ else:
     filtered_df = filtered_df.iloc[0:0]
 
 # ==========================================
-# 4. 메인 화면 구성
+# 4. 메인 화면 구성 (화이트 컨테이너 적용)
 # ==========================================
 
-# 1. 화면 타이틀
+# 1. 타이틀 영역 화이트 카드
+st.markdown('<div class="white-card">', unsafe_allow_html=True)
 st.markdown(
     '<div class="atoz-title">무역 분석 대시보드</div>', unsafe_allow_html=True
 )
@@ -257,9 +289,10 @@ else:
 st.caption(
     f"📍 현재 필터: **국가: {country_display}** | **무역액 등급: {', '.join(selected_grades) if selected_grades else '선택 없음'}** (조회 건수: {len(filtered_df):,}건)"
 )
-st.write("---")
+st.markdown("</div>", unsafe_allow_html=True)
 
-# 2. 결측치 현황
+# 2. 결측치 현황 화이트 카드
+st.markdown('<div class="white-card">', unsafe_allow_html=True)
 st.subheader("1. 데이터 결측치 현황 (baci_85_sample.csv)")
 null_counts = baci_raw.isnull().sum()
 null_df = pd.DataFrame(
@@ -270,13 +303,17 @@ null_df = pd.DataFrame(
     }
 )
 st.dataframe(null_df, use_container_width=True, hide_index=True)
+st.markdown("</div>", unsafe_allow_html=True)
 
-# 3. 주요 거래 지표
+# 3. 주요 거래 지표 화이트 카드
+st.markdown('<div class="white-card">', unsafe_allow_html=True)
 st.subheader("2. 주요 거래 지표")
 col_m1, col_m2 = st.columns(2)
 
 total_trades = len(filtered_df)
-total_export_value = filtered_df["v"].sum() if not filtered_df.empty else 0.0
+total_export_value = (
+    filtered_df["v"].sum() if not filtered_df.empty else 0.0
+)
 
 with col_m1:
     st.metric(label="총 거래 건수", value=f"{total_trades:,} 건")
@@ -285,10 +322,10 @@ with col_m2:
         label="총 수출액 (USD)",
         value=f"${total_export_value:,.2f}",
     )
+st.markdown("</div>", unsafe_allow_html=True)
 
-st.write("---")
-
-# 4. 반응형 시각화 분석 (Plotly 기반)
+# 4. 반응형 시각화 분석 화이트 카드
+st.markdown('<div class="white-card">', unsafe_allow_html=True)
 st.subheader("3. 무역 시각화 분석")
 c_col1, c_col2 = st.columns([1.3, 0.7])
 
@@ -297,7 +334,6 @@ with c_col1:
     if filtered_df.empty:
         st.info("선택한 필터 조건에 부합하는 데이터가 없습니다.")
     else:
-        # 상위 최대 8개국 추출
         top_countries = (
             filtered_df.groupby("country_name")["v"]
             .sum()
@@ -308,7 +344,6 @@ with c_col1:
             filtered_df["country_name"].isin(top_countries)
         ]
 
-        # 피벗 테이블 생성
         pivot_raw = heatmap_data.pivot_table(
             index="country_name",
             columns="t",
@@ -317,7 +352,6 @@ with c_col1:
             fill_value=0,
         )
 
-        # Min-Max 정규화 (0~1)
         val_min = pivot_raw.values.min()
         val_max = pivot_raw.values.max()
         if val_max - val_min > 0:
@@ -325,7 +359,6 @@ with c_col1:
         else:
             norm_values = np.zeros_like(pivot_raw.values)
 
-        # 텍스트 라벨 & 툴팁 데이터 구성
         text_labels = [[f"{val:.2f}" for val in row] for row in norm_values]
         hover_texts = []
         for r_idx, country in enumerate(pivot_raw.index):
@@ -340,7 +373,6 @@ with c_col1:
                 )
             hover_texts.append(row_hovers)
 
-        # 반응형 히트맵 생성
         fig_hm = go.Figure(
             data=go.Heatmap(
                 z=norm_values,
@@ -392,7 +424,6 @@ with c_col2:
             .reindex(grade_options, fill_value=0)
         )
 
-        # 반응형 막대그래프
         fig_bar = go.Figure(
             data=[
                 go.Bar(
@@ -422,17 +453,20 @@ with c_col2:
         )
 
         st.plotly_chart(fig_bar, use_container_width=True)
+st.markdown("</div>", unsafe_allow_html=True)
 
-st.write("---")
-
-# 5. 상위 5개국 * 무역액 등급 교차표
+# 5. 국가 * 무역액 등급 교차표 화이트 카드
+st.markdown('<div class="white-card">', unsafe_allow_html=True)
 st.subheader("4. 국가 × 무역액 등급 교차표")
 
 if filtered_df.empty:
     st.warning("선택한 조건에 해당하는 데이터가 없습니다.")
 else:
     top_5 = (
-        filtered_df.groupby("country_name")["v"].sum().nlargest(5).index.tolist()
+        filtered_df.groupby("country_name")["v"]
+        .sum()
+        .nlargest(5)
+        .index.tolist()
     )
     cross_data = filtered_df[filtered_df["country_name"].isin(top_5)]
 
@@ -471,3 +505,4 @@ else:
         st.dataframe(
             norm_cross.map(lambda x: f"{x:.1f}%"), use_container_width=True
         )
+st.markdown("</div>", unsafe_allow_html=True)
