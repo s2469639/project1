@@ -3,3 +3,5 @@ streamlit
 numpy
 seaborn
 plotly
+plotly.express
+plotly.graph_objects
